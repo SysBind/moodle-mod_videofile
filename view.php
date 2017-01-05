@@ -24,8 +24,10 @@
 
 require_once(dirname(__FILE__) . '/../../config.php');
 require_once(dirname(__FILE__) . '/locallib.php');
+require_once($CFG->libdir . '/resourcelib.php');
 
-$id = required_param('id', PARAM_INT);
+$id       = required_param('id', PARAM_INT);
+$redirect = optional_param('redirect', 0, PARAM_BOOL);
 
 $cm = get_coursemodule_from_id('videofile', $id, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
@@ -35,7 +37,18 @@ $videofile = new videofile($context, $cm, $course);
 require_login($course, true, $cm);
 require_capability('mod/videofile:view', $context);
 
-$PAGE->set_pagelayout('incourse');
+if ($redirect) {
+    $PAGE->set_pagelayout('popup');
+}
+
+switch ($videofile->get_instance()->display) {
+    case RESOURCELIB_DISPLAY_EMBED:
+        $PAGE->set_pagelayout('embedded');
+        break;
+    default:
+        $PAGE->set_pagelayout('incourse');
+        break;
+}
 
 $url = new moodle_url('/mod/videofile/view.php', array('id' => $id));
 $PAGE->set_url('/mod/videofile/view.php', array('id' => $cm->id));

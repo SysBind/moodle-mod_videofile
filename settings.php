@@ -28,8 +28,22 @@ if ($ADMIN->fulltree) {
     require_once($CFG->libdir . '/resourcelib.php');
 
     $displayoptions = resourcelib_get_displayoptions(
-        array(RESOURCELIB_DISPLAY_OPEN, RESOURCELIB_DISPLAY_POPUP));
+        array(RESOURCELIB_DISPLAY_EMBED, RESOURCELIB_DISPLAY_OPEN, RESOURCELIB_DISPLAY_POPUP));
     $defaultdisplayoptions = array(RESOURCELIB_DISPLAY_OPEN);
+
+    // Appearance
+    $settings->add(
+        new admin_setting_configmultiselect('videofile/displayoptions',
+                                            get_string('displayoptions', 'resource'),
+                                            get_string('configdisplayoptions', 'resource'),
+                                            $defaultdisplayoptions,
+                                            $displayoptions));
+    $settings->add(
+            new admin_setting_configselect('videofile/display',
+                                           get_string('displayselect', 'resource'),
+                                           get_string('displayselectexplain', 'resource'),
+                                           RESOURCELIB_DISPLAY_OPEN,
+                                           $displayoptions));
 
     // Heading.
     $settings->add(
@@ -61,6 +75,20 @@ if ($ADMIN->fulltree) {
                                          get_string('responsive', 'videofile'),
                                          get_string('responsive_explain', 'videofile'),
                                          0));
+
+    // Default mpeg-dash flag.
+    $settings->add(
+        new admin_setting_configcheckbox('videofile/mpegdash',
+            get_string('mpegdash', 'videofile'),
+            get_string('mpegdash_explain', 'videofile'),
+            0));
+
+    // Default transcript flag.
+    $settings->add(
+        new admin_setting_configcheckbox('videofile/transcript',
+            get_string('transcript', 'videofile'),
+            get_string('transcript_explain', 'videofile'),
+            0));
 
     // Default use width/height as max-width/height when in responsive mode flag.
     $settings->add(

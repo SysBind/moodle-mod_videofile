@@ -29,6 +29,7 @@ defined('MOODLE_INTERNAL') || die;
 
 require_once($CFG->dirroot . '/course/moodleform_mod.php');
 require_once(dirname(__FILE__) . '/locallib.php');
+require_once("$CFG->libdir/resourcelib.php");
 require_once($CFG->libdir . '/filelib.php');
 
 class mod_videofile_mod_form extends moodleform_mod {
@@ -103,6 +104,33 @@ class mod_videofile_mod_form extends moodleform_mod {
         $mform->addHelpButton('responsive', 'responsive', 'videofile');
         $mform->setDefault('responsive', $config->responsive);
 
+        // Responsive.
+        $mform->addElement('advcheckbox',
+            'mpegdash',
+            get_string('mpegdash', 'videofile'),
+            get_string('mpegdash_label', 'videofile'));
+        $mform->setType('mpegdash', PARAM_INT);
+        $mform->addHelpButton('mpegdash', 'mpegdash', 'videofile');
+        $mform->setDefault('mpegdash', $config->mpegdash);
+
+        // Responsive.
+        $mform->addElement('advcheckbox',
+            'transcript',
+            get_string('transcript', 'videofile'),
+            get_string('transcript_label', 'videofile'));
+        $mform->setType('transcript', PARAM_INT);
+        $mform->addHelpButton('transcript', 'transcript', 'videofile');
+        $mform->setDefault('transcript', $config->transcript);
+
+        // Video file url
+        $mform->addElement('url', 'externalurl', get_string('externalurl_label', 'videofile'), array('size'=>'60'), array('usefilepicker'=>true));
+        $mform->setType('externalurl', PARAM_URL);
+        $mform->addRule('externalurl',
+                        get_string('maximumchars', '', 255),
+                        'maxlength',
+                        255,
+                        'client');
+
         // Video file manager.
         $options = array('subdirs' => false,
                          'maxbytes' => 0,
@@ -114,8 +142,8 @@ class mod_videofile_mod_form extends moodleform_mod {
             get_string('videos', 'videofile'),
             null,
             $options);
-        $mform->addHelpButton('videos', 'videos', 'videofile');
-        $mform->addRule('videos', null, 'required', null, 'client');
+        //$mform->addHelpButton('videos', 'videos', 'videofile');
+        //$mform->addRule('videos', null, 'required', null, 'client');
 
         // Posters file manager.
         $options = array('subdirs' => false,
@@ -142,6 +170,26 @@ class mod_videofile_mod_form extends moodleform_mod {
             null,
             $options);
         $mform->addHelpButton('captions', 'captions', 'videofile');
+
+        //-------------------------------------------------------
+        $mform->addElement('header', 'optionssection', get_string('appearance'));
+
+        if ($this->current->instance) {
+            $options = resourcelib_get_displayoptions(explode(',', $config->displayoptions), $this->current->display);
+        } else {
+            $options = resourcelib_get_displayoptions(explode(',', $config->displayoptions));
+        }
+
+        if (count($options) == 1) {
+            $mform->addElement('hidden', 'display');
+            $mform->setType('display', PARAM_INT);
+            reset($options);
+            $mform->setDefault('display', key($options));
+        } else {
+            $mform->addElement('select', 'display', get_string('displayselect', 'resource'), $options);
+            $mform->setDefault('display', $config->display);
+            $mform->addHelpButton('display', 'displayselect', 'resource');
+        }
 
         // Standard elements, common to all modules.
         $this->standard_coursemodule_elements();

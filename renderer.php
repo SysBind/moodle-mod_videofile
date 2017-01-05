@@ -51,8 +51,21 @@ class mod_videofile_renderer extends plugin_renderer_base {
         $context = context_module::instance($coursemoduleid);
 
         // Add videojs css and js files.
-        $this->page->requires->css('/mod/videofile/video-js-4.12.8/video-js.min.css');
-        $this->page->requires->js('/mod/videofile/video-js-4.12.8/video.js', true);
+        //$this->page->requires->css('/mod/videofile/video-js-4.12.8/video-js.min.css');
+        //$this->page->requires->js('/mod/videofile/video-js-4.12.8/video.js', true);
+        // Accessibility support
+        $this->page->requires->css('/mod/videofile/video-js-5.21.1/video-js-5.8.min.css');
+        $this->page->requires->js('/mod/videofile/video-js-5.21.1/video-js-5.8.min.js', true);
+
+        // A VideoJS plugin for Transcript support.
+        $this->page->requires->js('/mod/videofile/video-js-4.12.8/plugins/videojs-transcript/dist/videojs-transcript.js', true);
+        $this->page->requires->css('/mod/videofile/video-js-4.12.8/plugins/videojs-transcript/css/videojs-transcript.css');
+
+        // A VideoJS plugin for MPEG-DASH support.
+        //$this->page->requires->js('/mod/videofile/video-js-4.12.8/plugins/dash/dash.all.debug.js', true);
+        $this->page->requires->js('/mod/videofile/video-js-4.12.8/plugins/dash/dash.all.min.js', true);
+        $this->page->requires->js('/mod/videofile/video-js-4.12.8/plugins/dash/videojs-dash.js', true);
+
 
         // Set the videojs flash fallback url.
         $swfurl = new moodle_url('/mod/videofile/video-js-4.12.8/video-js.swf');
@@ -60,7 +73,7 @@ class mod_videofile_renderer extends plugin_renderer_base {
             'videojs.options.flash.swf = "' . $swfurl . '";');
 
         // Yui module handles responsive mode video resizing.
-        if ($videofile->get_instance()->responsive) {
+        if ($videofile->get_instance()->responsive || $videofile->get_instance()->transcript) {
             $config = get_config('videofile');
 
             $this->page->requires->yui_module(
@@ -70,7 +83,9 @@ class mod_videofile_renderer extends plugin_renderer_base {
                       $swfurl,
                       $videofile->get_instance()->width,
                       $videofile->get_instance()->height,
-                      (boolean) $config->limitdimensions));
+                      (boolean) $config->limitdimensions,
+                      (boolean) $videofile->get_instance()->responsive,
+                      (boolean) $videofile->get_instance()->transcript));
         }
 
         // Header setup.
@@ -78,14 +93,16 @@ class mod_videofile_renderer extends plugin_renderer_base {
         $this->page->set_heading($this->page->course->fullname);
 
         $output .= $this->output->header();
-        $output .= $this->output->heading($name, 3);
+        if ($this->page->pagelayout != "popup" && $this->page->pagelayout != "embedded") {
+            $output .= $this->output->heading($name, 3);
+            if (!empty($videofile->get_instance()->intro)) {
+                $output .= $this->output->box_start('generalbox boxaligncenter', 'intro');
+                $output .= format_module_intro('videofile',
+                                               $videofile->get_instance(),
+                                               $coursemoduleid);
+                $output .= $this->output->box_end();
+            }
 
-        if (!empty($videofile->get_instance()->intro)) {
-            $output .= $this->output->box_start('generalbox boxaligncenter', 'intro');
-            $output .= format_module_intro('videofile',
-                                           $videofile->get_instance(),
-                                           $coursemoduleid);
-            $output .= $this->output->box_end();
         }
 
         return $output;
@@ -164,7 +181,7 @@ class mod_videofile_renderer extends plugin_renderer_base {
             break;  // Only one poster allowed.
         }
         if (!$posterurl) {
-            $posterurl = $this->pix_url('moodle-logo', 'videofile');
+            $posterurl = $this->pix_url('default-video-thumbnail', 'videofile');
         }
 
         return $posterurl;
@@ -225,6 +242,36 @@ class mod_videofile_renderer extends plugin_renderer_base {
     }
 
     /**
+     * Utility function for creating the video source elements HTML.
+     *
+     * @param int $contextid
+     * @return string HTML
+     */
+    private function get_video_url_source_elements_html($videofile) {
+        $output = '';
+
+        $videourl = $videofile->get_instance()->externalurl;
+        $ismpegdash = $videofile->get_instance()->mpegdash;
+        $mimetype = "video/mp4";
+
+        if ($ismpegdash) {
+            $output .= html_writer::empty_tag(
+                'source',
+                array('src' => $videourl.'/manifest.mpd',
+                    'type' => 'application/dash+xml')
+            );
+        } else {
+            $output .= html_writer::empty_tag(
+                'source',
+                array('src' => $videourl,
+                    'type' => $mimetype)
+            );
+        }
+
+        return $output;
+    }
+
+    /**
      * Utility function for creating the video caption track elements
      * HTML.
      *
@@ -262,6 +309,7 @@ class mod_videofile_renderer extends plugin_renderer_base {
 
                 $options = array('kind' => 'captions',
                                  'src' => $captionurl,
+                                 'srclang' => 'en',
                                  'label' => $label);
                 if ($first) {
                     $options['default'] = 'default';
@@ -305,11 +353,6 @@ class mod_videofile_renderer extends plugin_renderer_base {
             }
         }
 
-        $output = html_writer::tag('p',
-                                   get_string('video_not_playing',
-                                              'videofile',
-                                              $videooutput),
-                                   array());
         return html_writer::tag('div',
                                 $output,
                                 array('class' => 'videofile-not-playing-msg'));
@@ -335,16 +378,23 @@ class mod_videofile_renderer extends plugin_renderer_base {
         $output .= $this->get_video_element_html($videofile, $posterurl);
 
         // Elements for video sources.
-        $output .= $this->get_video_source_elements_html($contextid);
+        if ($videofile->get_instance()->externalurl != null) {
+            $output .= $this->get_video_url_source_elements_html($videofile);
+        } else {
+            $output .= $this->get_video_source_elements_html($contextid);
+        }
 
         // Elements for caption tracks.
         $output .= $this->get_video_caption_track_elements_html($contextid);
 
         // Close video tag.
         $output .= html_writer::end_tag('video');
+        if ($videofile->get_instance()->transcript) {
+            $output .= html_writer::div('','videotranscript');
+        }
 
         // Alternative video links in case video isn't showing/playing properly.
-        $output .= $this->get_alternative_video_links_html($contextid);
+//        $output .= $this->get_alternative_video_links_html($contextid);
 
         // Close videofile div.
         $output .= $this->output->container_end();
